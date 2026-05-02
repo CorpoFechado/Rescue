@@ -1,0 +1,425 @@
+/* ============================================
+   RESCUE - Global Stylesheet
+   Barangay 12 Emergency Management System
+   ============================================ */
+
+/* Google Fonts - imported once here, works everywhere */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+/* ── CSS Variables ── */
+:root {
+    --rescue-red:        #C0392B;
+    --rescue-red-dark:   #A93226;
+    --rescue-red-light:  #FADBD8;
+    --rescue-bg:         #F5F5F5;
+    --rescue-dark:       #1A1A2E;
+    --rescue-text:       #2C2C2C;
+    --rescue-muted:      #6C757D;
+    --rescue-border:     #E0E0E0;
+    --rescue-white:      #FFFFFF;
+    --rescue-success:    #1E8449;
+    --rescue-warning:    #B7770D;
+    --rescue-safe-bg:    #EAFAF1;
+    --rescue-help-bg:    #FADBD8;
+}
+
+/* ── Base ── */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: var(--rescue-bg);
+    color: var(--rescue-text);
+    font-size: 0.9rem;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    color: var(--rescue-text);
+}
+
+/* ── Buttons ── */
+.btn-rescue {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background-color: var(--rescue-red);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.65rem 1.25rem;
+    transition: background-color 0.2s, transform 0.1s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-rescue:hover  { background-color: var(--rescue-red-dark); color: #fff; }
+.btn-rescue:active { transform: scale(0.98); }
+
+.btn-rescue-outline {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--rescue-red);
+    border: 1.5px solid var(--rescue-red);
+    border-radius: 10px;
+    padding: 0.65rem 1.25rem;
+    transition: all 0.2s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-rescue-outline:hover {
+    background-color: var(--rescue-red);
+    color: #fff;
+}
+
+/* ── Form Controls ── */
+.form-label {
+    font-size: 0.825rem;
+    font-weight: 600;
+    color: var(--rescue-text);
+    margin-bottom: 6px;
+}
+
+.form-control,
+.form-select {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.875rem;
+    padding: 0.65rem 1rem;
+    border: 1.5px solid var(--rescue-border);
+    border-radius: 10px;
+    color: var(--rescue-text);
+    background: #FAFAFA;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--rescue-red);
+    box-shadow: 0 0 0 3px rgba(192,57,43,0.12);
+    background: #fff;
+    outline: none;
+}
+
+/* ── Cards ── */
+.rescue-card {
+    background: var(--rescue-white);
+    border: 1px solid var(--rescue-border);
+    border-radius: 14px;
+    padding: 1.25rem;
+}
+
+.rescue-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--rescue-text);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Status Badges ── */
+.badge-safe {
+    background: var(--rescue-safe-bg);
+    color: var(--rescue-success);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-help {
+    background: var(--rescue-help-bg);
+    color: var(--rescue-red-dark);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-unidentified {
+    background: #F2F3F4;
+    color: var(--rescue-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Alert type badges */
+.badge-flood   { background:#D6EAF8; color:#1A5276; font-size:0.72rem; font-weight:700; padding:3px 9px; border-radius:20px; }
+.badge-storm   { background:#FDEDEC; color:#922B21; font-size:0.72rem; font-weight:700; padding:3px 9px; border-radius:20px; }
+.badge-general { background:#F2F3F4; color:#5D6D7E; font-size:0.72rem; font-weight:700; padding:3px 9px; border-radius:20px; }
+.badge-fire    { background:#FDEBD0; color:#784212; font-size:0.72rem; font-weight:700; padding:3px 9px; border-radius:20px; }
+
+/* ── Alert Banner (top of page) ── */
+.alert-banner {
+    background-color: var(--rescue-red);
+    color: #fff;
+    padding: 0.6rem 1.25rem;
+    font-size: 0.83rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ── Resident Navbar ── */
+.rescue-navbar {
+    background: var(--rescue-white);
+    border-bottom: 1px solid var(--rescue-border);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.rescue-navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+}
+
+.rescue-navbar-brand .brand-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--rescue-red);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.rescue-navbar-brand .brand-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--rescue-text);
+    line-height: 1;
+}
+
+.rescue-navbar-brand .brand-sub {
+    font-size: 0.7rem;
+    color: var(--rescue-muted);
+    margin-top: 2px;
+}
+
+/* ── Officials Sidebar ── */
+.officials-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.officials-sidebar {
+    width: 220px;
+    background: var(--rescue-dark);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 200;
+    transition: transform 0.3s ease;
+}
+
+.officials-main {
+    margin-left: 220px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.sidebar-brand {
+    padding: 1.25rem 1.25rem 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sidebar-brand .brand-icon {
+    width: 34px;
+    height: 34px;
+    background: var(--rescue-red);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.sidebar-brand .brand-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+.sidebar-brand .brand-sub {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.5);
+    margin-top: 2px;
+}
+
+.sidebar-nav {
+    padding: 0.75rem 0;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.65rem 1.25rem;
+    color: rgba(255,255,255,0.65);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+    border-left: 3px solid transparent;
+}
+
+.sidebar-nav a:hover {
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+}
+
+.sidebar-nav a.active {
+    background: rgba(192,57,43,0.2);
+    color: #fff;
+    border-left-color: var(--rescue-red);
+}
+
+.sidebar-nav a i {
+    font-size: 1rem;
+    width: 18px;
+    text-align: center;
+}
+
+/* ── Officials Top Bar ── */
+.officials-topbar {
+    background: var(--rescue-white);
+    border-bottom: 1px solid var(--rescue-border);
+    padding: 0.65rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 99;
+}
+
+/* ── Page content padding ── */
+.page-content {
+    padding: 1.75rem 1.5rem;
+    flex: 1;
+}
+
+/* ── Stat/Metric Cards ── */
+.stat-card {
+    background: var(--rescue-white);
+    border: 1px solid var(--rescue-border);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.stat-card .stat-label {
+    font-size: 0.78rem;
+    color: var(--rescue-muted);
+    margin-bottom: 4px;
+}
+
+.stat-card .stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stat-card .stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+/* ── Footer ── */
+.rescue-footer {
+    background: var(--rescue-white);
+    border-top: 1px solid var(--rescue-border);
+    padding: 0.9rem 1.5rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--rescue-muted);
+}
+
+/* ── Mobile sidebar toggle ── */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 199;
+}
+
+@media (max-width: 767.98px) {
+    .officials-sidebar {
+        transform: translateX(-100%);
+    }
+
+    .officials-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .officials-main {
+        margin-left: 0;
+    }
+
+    .sidebar-overlay.open {
+        display: block;
+    }
+}
