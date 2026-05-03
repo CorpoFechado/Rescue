@@ -83,21 +83,19 @@ $stmtMe = $conn->prepare("
 $stmtMe->execute([$_SESSION['user_id']]);
 $myStatus = $stmtMe->fetch();
 
-require_once __DIR__ . '/../../includes/header_resident.php';
-
 $extraStyles = '
 <link rel="stylesheet" href="' . BASE_URL . '/assets/css/leaflet.css">
 <style>
-    body { padding-bottom: 70px; }
     #evac-map {
-        height: calc(100vh - 56px - 64px - 130px);
-        min-height: 320px;
-        max-height: 480px;
+        height: 340px;
         width: 100%;
         z-index: 1;
+        display: block;
     }
 </style>
 ';
+
+require_once __DIR__ . '/../../includes/header_resident.php';
 ?>
 
 <style>
@@ -105,7 +103,6 @@ $extraStyles = '
     .map-outer {
         background: var(--rescue-white);
         border-radius: 14px;
-        overflow: hidden;
         border: 1px solid var(--rescue-border);
         margin-bottom: 1rem;
     }
@@ -500,6 +497,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19,
 }).addTo(map);
+
+// Fix blinking/partial tiles — tell Leaflet to recalculate size
+// once the DOM and all assets are fully painted
+setTimeout(() => map.invalidateSize(), 100);
+window.addEventListener('load', () => map.invalidateSize());
 
 // ── Layer groups ──────────────────────────────────────────────────────────
 const layers = {
