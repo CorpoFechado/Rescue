@@ -224,6 +224,10 @@ require_once __DIR__ . '/../../includes/header_official.php';
                     <span class="legend-dot" style="background:#3498DB;"></span>
                     Evac Centers <strong style="color:var(--rescue-text);"><?= $evacCnt ?></strong>
                 </div>
+                <div class="map-legend-item">
+                    <span class="legend-dot" style="background:#E74C3C; border:2px solid #922B21;"></span>
+                    Need Help (with location) <strong style="color:var(--rescue-text);"><?= $helpCnt ?></strong>
+                </div>
             </div>
         </div>
 
@@ -447,6 +451,72 @@ MAP_HAZARDS.forEach(h => {
     .bindPopup(`<strong>${h.label}</strong><br><small>${h.hazard_type.toUpperCase()} ZONE</small>`)
     .addTo(dashMap);
 });
+
+// Hazard markers
+MAP_HAZARDS.forEach(h => {
+    if (!h.latitude || !h.longitude) return;
+    const color = h.hazard_type === 'flood' ? '#3498DB' : '#C0392B';
+    L.circleMarker([h.latitude, h.longitude], {
+        radius: 7, color: color, fillColor: color,
+        fillOpacity: 0.7, weight: 2,
+    })
+    .bindPopup(`<strong>${h.label}</strong><br><small>${h.hazard_type.toUpperCase()} ZONE</small>`)
+    .addTo(dashMap);
+});
+
+// ← ADD THIS BLOCK HERE ──────────────────────────────
+const NEED_HELP = <?php
+    $stmtNeedHelp = $conn->query("
+        SELECT r.first_name, r.last_name,
+               r.house_no, r.street, r.area,
+               sr.latitude, sr.longitude,
+               sr.notes, sr.reported_at
+        FROM safety_reports sr
+        JOIN residents r ON r.resident_id = sr.resident_id
+        WHERE sr.status = 'need_help'
+          AND sr.latitude IS NOT NULL
+          AND sr.longitude IS NOT NULL
+          AND sr.report_id = (
+              SELECT MAX(sr2.report_id) FROM safety_reports sr2
+              WHERE sr2.resident_id = sr.resident_id
+          )
+    ");
+    echo json_encode($stmtNeedHelp->fetchAll());
+?>;
+
+NEED_HELP.forEach(r => {
+    if (!r.latitude || !r.longitude) return;
+
+    const addr = [r.house_no, r.street, r.area].filter(Boolean).join(', ') || 'Address not set';
+    const time = new Date(r.reported_at).toLocaleString('en-PH', {
+        month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+    });
+
+    const marker = L.circleMarker([r.latitude, r.longitude], {
+        radius: 11,
+        color: '#922B21',
+        fillColor: '#E74C3C',
+        fillOpacity: 0.9,
+        weight: 2,
+    });
+
+    marker.bindPopup(`
+        <div style="font-family:inherit; min-width:160px;">
+            <div style="font-weight:700; color:#C0392B; margin-bottom:3px;">
+                &#9888; ${r.first_name} ${r.last_name}
+            </div>
+            <div style="font-size:0.78rem; color:#666; margin-bottom:2px;">${addr}</div>
+            ${r.notes ? `<div style="font-size:0.78rem; color:#333; margin-bottom:2px;">${r.notes}</div>` : ''}
+            <div style="font-size:0.72rem; color:#999;">${time}</div>
+        </div>
+    `);
+
+    marker.addTo(dashMap);
+});
+// ────────────────────────────────────────────────────
+</script>
+
 </script>
 
 <?php require_once __DIR__ . '/../../includes/footer_official.php'; ?>
