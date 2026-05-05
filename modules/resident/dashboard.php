@@ -18,46 +18,80 @@ $ridRow     = $stmtRid->fetch();
 $residentId = $ridRow ? $ridRow['resident_id'] : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $residentId) {
-    $action    = $_POST['action'] ?? '';
+    $action   = $_POST['action'] ?? '';
     $newStatus = $_POST['status'] ?? '';
     $notes     = trim($_POST['notes'] ?? '');
     $centerId  = $_POST['center_id'] ?? null;
 
     // ── RESET STATUS ──
     if ($action === 'reset_status') {
-    // Get the latest report_id first
-    $stmtLatest = $conn->prepare("
-        SELECT MAX(report_id) AS latest_id 
-        FROM safety_reports 
-        WHERE resident_id = ?
-    ");
-    $stmtLatest->execute([$residentId]);
-    $latestRow = $stmtLatest->fetch();
+        $stmtLatest = $conn->prepare("
+            SELECT MAX(report_id) AS latest_id 
+            FROM safety_reports 
+            WHERE resident_id = ?
+        ");
+        $stmtLatest->execute([$residentId]);
+        $latestRow = $stmtLatest->fetch();
 
-    if ($latestRow && $latestRow['latest_id']) {
-        $conn->prepare("
-            DELETE FROM safety_reports WHERE report_id = ?
-        ")->execute([$latestRow['latest_id']]);
+        if ($latestRow && $latestRow['latest_id']) {
+            $conn->prepare("DELETE FROM safety_reports WHERE report_id = ?")
+                 ->execute([$latestRow['latest_id']]);
+        }
+
+        header("Location: " . BASE_URL . "/modules/resident/dashboard.php?updated=1");
+        exit();
     }
 
-    header("Location: " . BASE_URL . "/modules/resident/dashboard.php?updated=1");
-    exit();
-}
+    // ── UPDATE LOCATION ──
+    if ($action === 'update_location') {
+        $lat = $_POST['latitude']  ?? null;
+        $lng = $_POST['longitude'] ?? null;
+
+        if ($lat && $lng) {
+            $stmtGetLatest = $conn->prepare("
+                SELECT MAX(report_id) AS latest_id
+                FROM safety_reports
+                WHERE resident_id = ? AND status = 'need_help'
+            ");
+            $stmtGetLatest->execute([$residentId]);
+            $latestRow = $stmtGetLatest->fetch();
+
+            if ($latestRow && $latestRow['latest_id']) {
+                $conn->prepare("
+                    UPDATE safety_reports
+                    SET latitude = ?, longitude = ?
+                    WHERE report_id = ?
+                ")->execute([$lat, $lng, $latestRow['latest_id']]);
+            }
+        }
+
+        header("Location: " . BASE_URL . "/modules/resident/dashboard.php?updated=1");
+        exit();
+    }
 
     // ── UPDATE STATUS ──
     $validStatuses = ['safe_at_home', 'evacuated', 'need_help'];
 
     if (in_array($newStatus, $validStatuses)) {
+        $lat = $_POST['latitude']  ?? null;
+        $lng = $_POST['longitude'] ?? null;
+
+        $saveLat = ($newStatus === 'need_help' && $lat) ? $lat : null;
+        $saveLng = ($newStatus === 'need_help' && $lng) ? $lng : null;
+
         $stmt = $conn->prepare("
-            INSERT INTO safety_reports (resident_id, status, notes, center_id, reported_at)
-            VALUES (?, ?, ?, ?, NOW())
+            INSERT INTO safety_reports (resident_id, status, notes, center_id, latitude, longitude, reported_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
         ");
         $stmt->execute([
             $residentId,
             $newStatus,
             $notes ?: null,
             ($newStatus === 'evacuated' && $centerId) ? $centerId : null,
+            $saveLat,
+            $saveLng,
         ]);
+
         header("Location: " . BASE_URL . "/modules/resident/dashboard.php?updated=1");
         exit();
     }
@@ -361,7 +395,28 @@ require_once __DIR__ . '/../../includes/header_resident.php';
                     Last updated: <?= date('M j, g:i A', strtotime($resident['reported_at'])) ?>
                 </div>
                 <?php endif; ?>
+                <?php if ($currentStatus === 'need_help'): ?>
+                <?php
+                $stmtLoc = $conn->prepare("
+                    SELECT latitude, longitude FROM safety_reports
+                    WHERE resident_id = ? AND status = 'need_help'
+                    ORDER BY report_id DESC LIMIT 1
+                ");
+                $stmtLoc->execute([$residentId]);
+                $locRow = $stmtLoc->fetch();
+                ?>
+                <?php if ($locRow && $locRow['latitude'] && $locRow['longitude']): ?>
+                <div style="margin-top:8px;">
+                    <button type="button" onclick="viewSubmittedLocation(<?= $locRow['latitude'] ?>, <?= $locRow['longitude'] ?>)"
+                        style="background:none;border:1.5px solid var(--rescue-red);border-radius:8px;padding:5px 12px;font-size:0.78rem;font-weight:700;color:var(--rescue-red);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;">
+                        <i class="bi bi-geo-alt-fill"></i> View Submitted Location
+                    </button>
+                </div>
+                <?php endif; ?>
+                <?php endif; ?>
             </div>
+
+            
 
             <?php if ($currentStatus): ?>
             <div style="margin-top:0.75rem; text-align:center;">
@@ -584,8 +639,10 @@ require_once __DIR__ . '/../../includes/header_resident.php';
             <button onclick="closeModal('helpModal')"
                 style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--rescue-muted);">&#x2715;</button>
         </div>
-        <form method="POST">
+        <form method="POST" id="helpForm">
             <input type="hidden" name="status" value="need_help">
+            <input type="hidden" name="latitude"  id="helpLat">
+            <input type="hidden" name="longitude" id="helpLng">
             <div class="r-modal-body">
                 <div style="background:var(--rescue-red-light); border:1px solid #F1948A; border-radius:10px; padding:0.875rem; margin-bottom:1rem; font-size:0.85rem; color:var(--rescue-red);">
                     <strong>Emergency?</strong> If this is a life-threatening emergency, call <strong>911</strong> immediately.
@@ -594,6 +651,25 @@ require_once __DIR__ . '/../../includes/header_resident.php';
                 <p style="font-size:0.85rem; color:var(--rescue-muted); margin-bottom:1rem; line-height:1.5;">
                     Your status will be reported to barangay officials who will coordinate assistance.
                 </p>
+
+                <!-- Location sharing -->
+                <!-- Location sharing -->
+                <div style="margin-bottom:1rem;">
+                    <label class="form-label" style="font-size:0.82rem;">Your Location (Optional)</label>
+                    <div id="locationStatus" style="background:#F8F9FA; border:1px solid var(--rescue-border); border-radius:10px; padding:0.875rem; display:flex; align-items:center; gap:10px;">
+                        <div id="locationIcon" style="width:36px;height:36px;border-radius:50%;background:#F0F3F4;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;color:var(--rescue-muted);">
+                            <i class="bi bi-geo-alt"></i>
+                        </div>
+                        <div style="flex:1;min-width:0;">
+                            <div id="locationText" style="font-size:0.82rem;font-weight:600;color:var(--rescue-text);">Share your location</div>
+                            <div id="locationSub" style="font-size:0.75rem;color:var(--rescue-muted);">Helps officials find you faster</div>
+                        </div>
+                        <button type="button" id="locationBtn" onclick="getLocation()"
+                            style="background:var(--rescue-red);border:none;border-radius:8px;padding:6px 12px;font-size:0.78rem;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
+                            Share
+                        </button>
+                    </div>
+                </div>
 
                 <div>
                     <label class="form-label" style="font-size:0.82rem;">Describe your situation (Optional)</label>
@@ -679,6 +755,145 @@ require_once __DIR__ . '/../../includes/header_resident.php';
     </div>
 </div>
 
+<!-- LOCATION CONFIRM MODAL -->
+<div class="r-modal-backdrop" id="locationConfirmModal" style="z-index:10001;">
+    <div class="r-modal" style="max-width:380px;">
+        <div class="r-modal-handle"></div>
+        <div class="r-modal-header">
+            <h5><i class="bi bi-geo-alt-fill" style="color:var(--rescue-red);margin-right:6px;"></i> Confirm Your Location</h5>
+            <button onclick="closeLocationConfirm()"
+                style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--rescue-muted);">&#x2715;</button>
+        </div>
+        <div class="r-modal-body" style="padding:0;">
+            <div id="confirmMap" style="height:220px;width:100%;"></div>
+            <div style="padding:1rem 1.25rem;">
+                <div style="background:#EAFAF1;border:1px solid #A9DFBF;border-radius:10px;padding:0.75rem;font-size:0.8rem;color:#1E8449;display:flex;align-items:center;gap:8px;">
+                    <i class="bi bi-geo-alt-fill"></i>
+                    <div>
+                        <div style="font-weight:700;">Detected Location</div>
+                        <div id="confirmCoordsText" style="font-family:monospace;font-size:0.75rem;color:var(--rescue-muted);margin-top:2px;"></div>
+                    </div>
+                </div>
+                <p style="font-size:0.8rem;color:var(--rescue-muted);margin:0.75rem 0 0;line-height:1.5;">
+                    Is this your correct location? You can drag the pin to adjust it before confirming.
+                </p>
+            </div>
+        </div>
+        <div class="r-modal-footer">
+            <button type="button" class="btn-r-cancel" onclick="closeLocationConfirm()">Cancel</button>
+            <button type="button" class="btn-r-submit" style="background:#1E8449;" onclick="confirmLocation()">
+                <i class="bi bi-check-circle-fill"></i> Yes, Use This Location
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- VIEW SUBMITTED LOCATION MODAL -->
+<div class="r-modal-backdrop" id="viewLocationModal" style="z-index:10001;">
+    <div class="r-modal" style="max-width:380px;">
+        <div class="r-modal-handle"></div>
+        <div class="r-modal-header">
+            <h5><i class="bi bi-geo-alt-fill" style="color:var(--rescue-red);margin-right:6px;"></i> Your Submitted Location</h5>
+            <button onclick="closeModal('viewLocationModal')"
+                style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--rescue-muted);">&#x2715;</button>
+        </div>
+        <div class="r-modal-body" style="padding:0;">
+            <div id="viewLocationMap" style="height:260px;width:100%;"></div>
+            <div style="padding:1rem 1.25rem;">
+                <div style="background:var(--rescue-red-light);border:1px solid #F1948A;border-radius:10px;padding:0.75rem;font-size:0.8rem;color:var(--rescue-red);display:flex;align-items:center;gap:8px;">
+                    <i class="bi bi-geo-alt-fill"></i>
+                    <div>
+                        <div style="font-weight:700;">Location shared with officials</div>
+                        <div id="viewCoordsText" style="font-family:monospace;font-size:0.75rem;margin-top:2px;opacity:0.8;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="r-modal-footer">
+            <button type="button" class="btn-r-cancel" onclick="closeModal('viewLocationModal')">Close</button>
+            <button type="button" class="btn-r-submit" style="background:#2980B9;" onclick="openEditLocation()">
+                <i class="bi bi-pencil-fill"></i> Edit Location
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- EDIT LOCATION MODAL -->
+<div class="r-modal-backdrop" id="editLocationModal" style="z-index:10002;">
+    <div class="r-modal" style="max-width:380px;">
+        <div class="r-modal-handle"></div>
+        <div class="r-modal-header">
+            <h5><i class="bi bi-pencil-fill" style="color:#2980B9;margin-right:6px;"></i> Edit Your Location</h5>
+            <button onclick="closeModal('editLocationModal')"
+                style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--rescue-muted);">&#x2715;</button>
+        </div>
+        <div class="r-modal-body" style="padding:0;">
+            <div id="editLocationMap" style="height:240px;width:100%;"></div>
+            <div style="padding:1rem 1.25rem;">
+                <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:10px;padding:0.75rem;font-size:0.8rem;color:#1A5276;display:flex;align-items:center;gap:8px;margin-bottom:0.75rem;">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div>
+                        <div style="font-weight:700;">Drag the pin or click map to reposition</div>
+                        <div id="editCoordsText" style="font-family:monospace;font-size:0.75rem;margin-top:2px;opacity:0.8;"></div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button type="button"
+                        style="flex:1;padding:8px;border:1.5px solid var(--rescue-border);border-radius:8px;background:#fff;font-size:0.78rem;font-weight:700;color:var(--rescue-muted);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px;"
+                        onclick="redetectLocation()">
+                        <i class="bi bi-crosshair"></i> Redetect GPS
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="r-modal-footer">
+            <button type="button" class="btn-r-cancel" onclick="closeModal('editLocationModal')">Cancel</button>
+            <button type="button" class="btn-r-submit" style="background:#2980B9;" onclick="saveEditedLocation()">
+                <i class="bi bi-check-circle-fill"></i> Save Location
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRM SAVE LOCATION MODAL -->
+<div class="r-modal-backdrop" id="confirmSaveLocationModal" style="z-index:10003;">
+    <div class="r-modal" style="max-width:340px;">
+        <div class="r-modal-handle"></div>
+        <div class="r-modal-header">
+            <h5><i class="bi bi-geo-alt-fill" style="color:#2980B9;margin-right:6px;"></i> Save New Location?</h5>
+            <button onclick="closeModal('confirmSaveLocationModal')"
+                style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--rescue-muted);">&#x2715;</button>
+        </div>
+        <div class="r-modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+            <div style="width:52px;height:52px;background:#EBF5FB;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.3rem;color:#2980B9;">
+                <i class="bi bi-geo-alt-fill"></i>
+            </div>
+            <p style="font-size:0.9rem;font-weight:700;color:var(--rescue-text);margin-bottom:0.5rem;">
+                Update your location?
+            </p>
+            <p style="font-size:0.83rem;color:var(--rescue-muted);line-height:1.6;margin:0 0 0.75rem;">
+                Your new coordinates will replace the previously shared location. Officials will see the updated pin.
+            </p>
+            <div style="background:#F8F9FA;border:1px solid var(--rescue-border);border-radius:8px;padding:0.6rem;font-family:monospace;font-size:0.78rem;color:var(--rescue-text);" id="confirmSaveCoords"></div>
+        </div>
+        <div class="r-modal-footer">
+            <button type="button" class="btn-r-cancel" onclick="closeModal('confirmSaveLocationModal')">Cancel</button>
+            <button type="button" class="btn-r-submit" style="background:#2980B9;" onclick="doSaveLocation()">
+                <i class="bi bi-check-circle-fill"></i> Yes, Update Location
+            </button>
+        </div>
+    </div>
+</div>
+
+<form method="POST" id="editLocationForm">
+    <input type="hidden" name="action" value="update_location">
+    <input type="hidden" name="latitude"  id="editLat">
+    <input type="hidden" name="longitude" id="editLng">
+</form>
+
+
+<script src="<?= BASE_URL ?>/assets/js/leaflet.js"></script>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/leaflet.css">
 
 <script>
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
@@ -694,16 +909,274 @@ function submitStatus(status) {
     if (status === 'safe_at_home') {
         openModal('safeModal');
     } else if (status === 'need_help') {
+        document.getElementById('helpLat').value = '';
+        document.getElementById('helpLng').value = '';
+        document.getElementById('locationBtn').textContent = 'Share';
+        document.getElementById('locationBtn').disabled = false;
+        document.getElementById('locationBtn').style.background = 'var(--rescue-red)';
+        document.getElementById('locationIcon').innerHTML = '<i class="bi bi-geo-alt"></i>';
+        document.getElementById('locationIcon').style.color = 'var(--rescue-muted)';
+        document.getElementById('locationIcon').style.background = '#F0F3F4';
+        document.getElementById('locationText').textContent = 'Share your location';
+        document.getElementById('locationSub').textContent = 'Helps officials find you faster';
+        document.getElementById('locationStatus').style.borderColor = 'var(--rescue-border)';
         openModal('helpModal');
     }
 }
 
-function openEvacModal() {
-    openModal('evacModal');
+function openEvacModal() { openModal('evacModal'); }
+function confirmReset()  { openModal('resetModal'); }
+
+// ── Geolocation + confirm map ──
+let confirmMap     = null;
+let confirmMarker  = null;
+let pendingLat     = null;
+let pendingLng     = null;
+let pendingViewLat = null;
+let pendingViewLng = null;
+
+function getLocation() {
+    const btn    = document.getElementById('locationBtn');
+    const icon   = document.getElementById('locationIcon');
+    const text   = document.getElementById('locationText');
+    const sub    = document.getElementById('locationSub');
+    const status = document.getElementById('locationStatus');
+
+    if (!navigator.geolocation) {
+        text.textContent = 'Not supported';
+        sub.textContent  = 'Your browser does not support location sharing.';
+        return;
+    }
+
+    btn.textContent       = 'Getting...';
+    btn.disabled          = true;
+    icon.innerHTML        = '<i class="bi bi-arrow-repeat"></i>';
+    icon.style.color      = '#B7770D';
+    icon.style.background = '#FEF9E7';
+    text.textContent      = 'Getting your location...';
+
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            pendingLat = position.coords.latitude;
+            pendingLng = position.coords.longitude;
+
+            btn.textContent  = 'Share';
+            btn.disabled     = false;
+
+            openLocationConfirm(pendingLat, pendingLng);
+        },
+        function(err) {
+            icon.innerHTML        = '<i class="bi bi-geo-alt-fill"></i>';
+            icon.style.color      = 'var(--rescue-red)';
+            icon.style.background = 'var(--rescue-red-light)';
+
+            let msg = 'Could not get location.';
+            if (err.code === 1) msg = 'Location permission denied.';
+            if (err.code === 2) msg = 'Location unavailable.';
+            if (err.code === 3) msg = 'Location request timed out.';
+
+            text.textContent             = msg;
+            sub.textContent              = 'You can still submit without location.';
+            status.style.borderColor     = '#F1948A';
+            btn.textContent              = 'Try again';
+            btn.disabled                 = false;
+        },
+        { timeout: 10000, maximumAge: 60000 }
+    );
 }
 
-function confirmReset() {
-    openModal('resetModal');
+function openLocationConfirm(lat, lng) {
+    document.getElementById('confirmCoordsText').textContent =
+        lat.toFixed(5) + ', ' + lng.toFixed(5);
+
+    openModal('locationConfirmModal');
+
+    // Init or reuse map
+    setTimeout(() => {
+        if (!confirmMap) {
+            confirmMap = L.map('confirmMap', { zoomControl: true });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+            }).addTo(confirmMap);
+        }
+
+        confirmMap.setView([lat, lng], 17);
+
+        if (confirmMarker) confirmMap.removeLayer(confirmMarker);
+
+        confirmMarker = L.marker([lat, lng], { draggable: true })
+            .addTo(confirmMap)
+            .bindPopup('Drag to adjust your location')
+            .openPopup();
+
+        confirmMarker.on('dragend', function() {
+            const pos = confirmMarker.getLatLng();
+            pendingLat = pos.lat;
+            pendingLng = pos.lng;
+            document.getElementById('confirmCoordsText').textContent =
+                pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+        });
+
+        confirmMap.invalidateSize();
+    }, 150);
+}
+
+function confirmLocation() {
+    const lat = pendingLat;
+    const lng = pendingLng;
+
+    document.getElementById('helpLat').value = lat.toFixed(7);
+    document.getElementById('helpLng').value = lng.toFixed(7);
+
+    // Update the location status UI in the help modal
+    const icon   = document.getElementById('locationIcon');
+    const text   = document.getElementById('locationText');
+    const sub    = document.getElementById('locationSub');
+    const status = document.getElementById('locationStatus');
+    const btn    = document.getElementById('locationBtn');
+
+    icon.innerHTML        = '<i class="bi bi-geo-alt-fill"></i>';
+    icon.style.color      = '#1E8449';
+    icon.style.background = '#EAFAF1';
+    text.textContent      = 'Location confirmed';
+    sub.textContent       = lat.toFixed(5) + ', ' + lng.toFixed(5);
+    status.style.borderColor = '#A9DFBF';
+    btn.textContent       = 'Recapture';
+    btn.disabled          = false;
+    btn.style.background  = '#1E8449';
+
+    closeLocationConfirm();
+}
+
+function closeLocationConfirm() {
+    closeModal('locationConfirmModal');
+}
+
+// ── View submitted location ──
+let viewLocMap    = null;
+let viewLocMarker = null;
+
+function viewSubmittedLocation(lat, lng) {
+
+    pendingViewLat = lat;   // ← add this
+    pendingViewLng = lng;   // ← add this
+
+    document.getElementById('viewCoordsText').textContent =
+        parseFloat(lat).toFixed(5) + ', ' + parseFloat(lng).toFixed(5);
+
+    openModal('viewLocationModal');
+
+    setTimeout(() => {
+        if (!viewLocMap) {
+            viewLocMap = L.map('viewLocationMap', { zoomControl: true, dragging: true });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+            }).addTo(viewLocMap);
+        }
+
+        viewLocMap.setView([lat, lng], 17);
+
+        if (viewLocMarker) viewLocMap.removeLayer(viewLocMarker);
+
+        viewLocMarker = L.circleMarker([lat, lng], {
+            radius: 10, color: '#C0392B', fillColor: '#E74C3C',
+            fillOpacity: 0.9, weight: 2,
+        })
+        .addTo(viewLocMap)
+        .bindPopup('<strong style="color:#C0392B;">⚠ Your Help Request</strong>')
+        .openPopup();
+
+        viewLocMap.invalidateSize();
+    }, 150);
+}
+
+// ── Edit location ──
+let editLocMap    = null;
+let editLocMarker = null;
+let editLat       = null;
+let editLng       = null;
+
+function openEditLocation() {
+    // Seed with the currently viewed coords
+    editLat = pendingViewLat;
+    editLng = pendingViewLng;
+
+    closeModal('viewLocationModal');
+    openModal('editLocationModal');
+
+    document.getElementById('editCoordsText').textContent =
+        parseFloat(editLat).toFixed(5) + ', ' + parseFloat(editLng).toFixed(5);
+
+    setTimeout(() => {
+        if (!editLocMap) {
+            editLocMap = L.map('editLocationMap', { zoomControl: true });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+            }).addTo(editLocMap);
+
+            // Click map to reposition
+            editLocMap.on('click', function(e) {
+                editLat = e.latlng.lat;
+                editLng = e.latlng.lng;
+                editLocMarker.setLatLng([editLat, editLng]);
+                document.getElementById('editCoordsText').textContent =
+                    editLat.toFixed(5) + ', ' + editLng.toFixed(5);
+            });
+        }
+
+        editLocMap.setView([editLat, editLng], 17);
+
+        if (editLocMarker) editLocMap.removeLayer(editLocMarker);
+
+        editLocMarker = L.marker([editLat, editLng], { draggable: true })
+            .addTo(editLocMap)
+            .bindPopup('Drag or click map to adjust')
+            .openPopup();
+
+        editLocMarker.on('dragend', function() {
+            const pos = editLocMarker.getLatLng();
+            editLat = pos.lat;
+            editLng = pos.lng;
+            document.getElementById('editCoordsText').textContent =
+                pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+        });
+
+        editLocMap.invalidateSize();
+    }, 150);
+}
+
+function redetectLocation() {
+    if (!navigator.geolocation) return;
+
+    document.getElementById('editCoordsText').textContent = 'Detecting...';
+
+    navigator.geolocation.getCurrentPosition(
+        function(pos) {
+            editLat = pos.coords.latitude;
+            editLng = pos.coords.longitude;
+            editLocMap.setView([editLat, editLng], 17);
+            editLocMarker.setLatLng([editLat, editLng]);
+            document.getElementById('editCoordsText').textContent =
+                editLat.toFixed(5) + ', ' + editLng.toFixed(5);
+        },
+        function() {
+            document.getElementById('editCoordsText').textContent = 'Could not detect. Drag pin manually.';
+        },
+        { timeout: 8000 }
+    );
+}
+
+function saveEditedLocation() {
+    // Show confirm modal instead of submitting directly
+    document.getElementById('confirmSaveCoords').textContent =
+        editLat.toFixed(5) + ', ' + editLng.toFixed(5);
+    openModal('confirmSaveLocationModal');
+}
+
+function doSaveLocation() {
+    document.getElementById('editLat').value = editLat.toFixed(7);
+    document.getElementById('editLng').value = editLng.toFixed(7);
+    document.getElementById('editLocationForm').submit();
 }
 </script>
 
